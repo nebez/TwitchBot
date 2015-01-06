@@ -32,7 +32,7 @@ namespace IrcBot
                 }
 
                 Logger.Log.Write("Successfully compiled!", ConsoleColor.DarkGray);
-                //Invoke onLoad from the script, let it handle the rest.
+                // Invoke onLoad from the script, let it handle the rest.
                 Scripting.Script.onLoad();
             }
             catch (Exception e)

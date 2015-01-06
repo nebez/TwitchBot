@@ -1,4 +1,5 @@
 ﻿using ConsoleLogger;
+using CSScriptLibrary;
 using IrcBot.Scripts;
 using Sharkbite.Irc;
 using System;
@@ -20,6 +21,8 @@ namespace IrcBot.Objects
 
         public int messageLimitDelay = 35000; //35 seconds (stop at 35 just to be safe, actually 30)
         public int messageLimit = 19; //19 messages (stop at 19 just to be safe, actually 20)
+
+        private bool messagePollerRunning = true;
 
         public Bot()
         {
@@ -86,7 +89,7 @@ namespace IrcBot.Objects
         {
             int now;
             int delay = 100; //run once every 100 ms to avoid consuming too many resources
-            while (true)
+            do
             {
                 Thread.Sleep(delay);
 
@@ -116,7 +119,12 @@ namespace IrcBot.Objects
                     //keep track of the message timestamp
                     previousMessageTimestamps.Add(now);
                 }
-            }
+
+                if(messagePollerRunning == false)
+                {
+                    ircConnection.Disconnect("Goodbye");
+                }
+            } while (messagePollerRunning);
         }
 
         public void OnRegistered()
@@ -180,6 +188,23 @@ namespace IrcBot.Objects
                 return;
             }
 
+            if (user.Nick.ToLower().Equals("nebezb") && message.Equals("!recompile"))
+            {
+                Logger.Log.Write("Recompiling bot script...", ConsoleColor.DarkGray);
+                try
+                {
+                    var tmp = CSScript.Evaluator.LoadFile<Interfaces.IScript>("./script.cs");
+                    Scripting.Script = tmp;
+                    // ERROR RIGHT HERE.
+                    Logger.Log.Write("Successfully recompiled bot script!", ConsoleColor.DarkGreen);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log.Write("Error recompiling script! " + ex.ToString(), ConsoleColor.Red);
+                }
+                return;
+            }
+
             //Do we have this user object already?
             if (!tempchan.UserExists(user.Nick))
                 //Nope, let's make a user object for this channel
@@ -198,10 +223,6 @@ namespace IrcBot.Objects
 
             //Send this off to our script
             Scripting.Script.onChatMessage(tempchan, sender, message);
-
-            //HACK: Built in ping/pong test... just in case!
-            if (sender.Nickname.ToLower().Equals("nebezb") && message.ToLower().Equals("ping"))
-                sender.Channel.SendMessage("pong");
         }
 
         public void OnTwitchNotification(Channel channel, string notification)
@@ -379,8 +400,13 @@ namespace IrcBot.Objects
             Logger.Log.Write("Connection to the server has been closed.", ConsoleColor.DarkRed);
         }
 
-        public void JoinChannel(string channel)
+        public Channel JoinChannel(string channel)
         {
+            if (channel.IndexOf('#') != 0)
+            {
+                channel = "#" + channel;
+            }
+
             if (ircConnection.Connected)
             {
                 //Join the channel
@@ -392,7 +418,7 @@ namespace IrcBot.Objects
                 {
                     //Whoa! We already exist?
                     Logger.Log.Write("Channel " + channel + " exists already?");
-                    return;
+                    return GetChannelByName(channel);
                 }
 
                 Channel newchannel = new Channel(channel, this);
@@ -403,15 +429,23 @@ namespace IrcBot.Objects
 
                 //Add this channel to watch!
                 channels.Add(newchannel);
+
+                return newchannel;
             }
             else
             {
                 Logger.Log.Write("Unable to join channel without a connection");
+                return null;
             }
         }
 
         public void LeaveChannel(string channel)
         {
+            if(channel.IndexOf('#') != 0)
+            {
+                channel = "#" + channel;
+            }
+
             if (ircConnection.Connected)
             {
                 //Leave the channel
@@ -434,6 +468,11 @@ namespace IrcBot.Objects
             {
                 Logger.Log.Write("Unable to part channel without a connection");
             }
+        }
+
+        public void Stop()
+        {
+            messagePollerRunning = false;
         }
 
         public Channel GetChannelByName(string channel)

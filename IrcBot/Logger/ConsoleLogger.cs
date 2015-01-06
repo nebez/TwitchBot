@@ -52,6 +52,7 @@ namespace ConsoleLogger
             int lines;
 
             Console.ForegroundColor = color;
+            msg = UTF8toASCII(msg);
 
             //Message for the log file
             message = "[" + Timestamp() + "] " + "[" + System.Threading.Thread.CurrentThread.Name + "] " + msg;
@@ -76,6 +77,16 @@ namespace ConsoleLogger
             //... now write to log file
             _logStream.Write(buffer, 0, buffer.Length);
             _logStream.Flush();
+        }
+
+        public string UTF8toASCII(string text)
+        {
+            System.Text.Encoding utf8 = System.Text.Encoding.UTF8;
+            Byte[] encodedBytes = utf8.GetBytes(text);
+            Byte[] convertedBytes = Encoding.Convert(Encoding.UTF8, Encoding.ASCII, encodedBytes);
+            System.Text.Encoding ascii = System.Text.Encoding.ASCII;
+
+            return ascii.GetString(convertedBytes);
         }
 
         /// <summary>
